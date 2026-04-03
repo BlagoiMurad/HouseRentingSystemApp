@@ -11,6 +11,7 @@ namespace HouseRentingSystemApi.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Produces(typeof(AuthResult))]
     public class AuthController : ControllerBase
     {
         private readonly UserManager<ApplicationUser> _userManager;
@@ -27,24 +28,37 @@ namespace HouseRentingSystemApi.Controllers
         {
             if (!ModelState.IsValid)
             {
-                return BadRequest();
+                var authResult = new AuthResult();
+                authResult.Code = 400;
+                
+            var allErrors = ModelState.Values
+                    .SelectMany(v => v.Errors)
+                    .Select(e => e.ErrorMessage)
+                    .ToList();
+                authResult.Massage = string.Join(Environment.NewLine, allErrors);
+                return Unauthorized();
             }
             var user = await _userManager.FindByEmailAsync(model.Email);
 
             if (user == null)
             {
-                return Unauthorized("Invalid email or password");
+                return Unauthorized(populateresult(400,null,"The username or email do not exists."));
             }
             var result = await _userManager.CheckPasswordAsync(user, model.Password);
             if (!result)
             {
-                return Unauthorized("Invalid email or password");
+                return Unauthorized(populateresult(400, null, "The username or email already exists."));
             }
             var token = GenerateJwtToken(user);
-            return Ok(token);
-
+            Console.WriteLine(token);
+            return Ok("\"" + token + "\"");
+            //return Ok(populateresult(200,token,"User logged in"));
         }
-        [HttpPost("/register")] 
+
+      
+
+        [HttpPost("/register")]
+        [Produces(typeof(AuthResult))]
         public async Task <IActionResult> Register([FromBody]Register model)
         {
            if(!ModelState.IsValid)
@@ -56,10 +70,8 @@ namespace HouseRentingSystemApi.Controllers
 
             if (user != null)
             {
-                return BadRequest(new
-                {
-                    message = "Email already exists",
-                });
+                return Ok(populateresult(400, null, "User already exist"));
+                
             }
             var newUser = new ApplicationUser()
             {
@@ -70,9 +82,12 @@ namespace HouseRentingSystemApi.Controllers
             
             if(result.Succeeded)
             {
-               return Ok();
+              
+
+                return Ok(populateresult(200,null, "User registered succsesfully"));
             }
-            return Ok();  
+           
+            return BadRequest();  
         }
 
         private string GenerateJwtToken(ApplicationUser user)
@@ -105,6 +120,18 @@ namespace HouseRentingSystemApi.Controllers
             );
 
             return new JwtSecurityTokenHandler().WriteToken(token);
+        }
+
+        private AuthResult populateresult( int code, string? token = null,params string[] masseges)
+        {
+            var result = new AuthResult();
+            result.Code = code;
+            result.Massage = string.Join(Environment.NewLine, masseges);
+            if(token != null)
+            {
+                result.Token = token;
+            }
+            return result;
         }
 
 
