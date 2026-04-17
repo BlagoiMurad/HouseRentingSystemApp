@@ -9,6 +9,7 @@ using System.Security.Claims;
 
 namespace HouseRentingSystemApi.Controllers
 {
+    [ApiController]
     [Route("api/[controller]")]
     public class HouseController : ControllerBase
     {
@@ -40,7 +41,6 @@ namespace HouseRentingSystemApi.Controllers
             return Ok(model);
         }
 
-
         [HttpGet("{id}")]
         [Produces(typeof(HouseDetailModel))]
         public async Task<IActionResult> GetById(int id)
@@ -66,15 +66,14 @@ namespace HouseRentingSystemApi.Controllers
             });
         }
 
-        //implementirame end point edit. da polu`awame danni json za kushat s post zaqwka kym edit aktiona i da editwame ku]a kym bazata
         [Authorize]
         [HttpPost]
         [Produces(typeof(HouseDetailModel))]
         public async Task<IActionResult> Create([FromBody] HouseDetailModel model)
         {
-            if (ModelState.IsValid == false)
+            if (!ModelState.IsValid)
             {
-                return BadRequest();
+                return BadRequest(ModelState);
             }
 
             var newHouse = new House()
@@ -86,43 +85,44 @@ namespace HouseRentingSystemApi.Controllers
                 ImageUrl = model.ImageUrl
             };
 
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);  
-
             var category = await context.Categories
-                .FirstOrDefaultAsync(c => c.Name ==  model.Category
-                .ToString());
-            if(category == null)
+                .FirstOrDefaultAsync(c => c.Name == model.Category.ToString());
+
+            if (category == null)
             {
                 var newCategory = new Category()
                 {
                     Name = model.Category.ToString(),
                 };
+
                 context.Categories.Add(newCategory);
                 await context.SaveChangesAsync();
-                newHouse.CategoryId = newCategory.Id; 
-                
+                newHouse.CategoryId = newCategory.Id;
             }
             else
             {
                 newHouse.CategoryId = category.Id;
             }
+
             context.Houses.Add(newHouse);
             await context.SaveChangesAsync();
-            return Created($"api/{newHouse.Id}", new HouseDetailModel()
-                {
-                    Address = newHouse.Address,
-                    ImageUrl = newHouse.ImageUrl,
-                    Title = newHouse.Title,
-                    Description = newHouse.Description,
-                    PricePerMonth = newHouse.PricePerMonth,
-                    Category = model.Category
-            });
 
+            return Created($"api/House/{newHouse.Id}", new HouseDetailModel()
+            {
+                Id = newHouse.Id,
+                Address = newHouse.Address,
+                ImageUrl = newHouse.ImageUrl,
+                Title = newHouse.Title,
+                Description = newHouse.Description,
+                PricePerMonth = newHouse.PricePerMonth,
+                Category = model.Category
+            });
         }
+
         [Authorize]
-        [HttpPost("Edit/{id}")]
+        [HttpPut("{id}")]
         [Produces(typeof(HouseDetailModel))]
-        public async Task<IActionResult> Edit(int id, [FromBody] HouseDetailModel model)
+        public async Task<IActionResult> Edit([FromRoute] int id, [FromBody] HouseDetailModel model)
         {
             if (!ModelState.IsValid)
             {
@@ -134,7 +134,7 @@ namespace HouseRentingSystemApi.Controllers
 
             if (house == null)
             {
-                return NotFound("The house is already deleted or It is not been find");
+                return NotFound("The house is already deleted or it was not found.");
             }
 
             house.Title = model.Title;
@@ -163,18 +163,18 @@ namespace HouseRentingSystemApi.Controllers
 
             return Ok(new HouseDetailModel()
             {
-                Id= house.Id,
+                Id = house.Id,
                 Title = house.Title,
                 Address = house.Address,
                 ImageUrl = house.ImageUrl,
                 Description = house.Description,
                 PricePerMonth = house.PricePerMonth,
-                Category = model.Category
+                Category = (CategoryViewEnum)house.CategoryId
             });
         }
 
         [Authorize]
-        [HttpPost("Delete/{id}")]
+        [HttpDelete("{id}")]
         public async Task<IActionResult> Delete([FromRoute] int id)
         {
             var house = await context.Houses
@@ -182,7 +182,7 @@ namespace HouseRentingSystemApi.Controllers
 
             if (house == null)
             {
-                return NotFound("The house is already deleted or It is not been find");
+                return NotFound("The house is already deleted or it was not found.");
             }
 
             context.Houses.Remove(house);
@@ -190,6 +190,5 @@ namespace HouseRentingSystemApi.Controllers
 
             return Ok(new { message = $"House with id {id} was deleted successfully." });
         }
-        
     }
 }
