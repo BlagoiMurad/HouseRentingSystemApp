@@ -134,10 +134,9 @@ namespace HouseRentingSystemApi.Controllers
 
             if (house == null)
             {
-                return NotFound();
+                return NotFound("The house is already deleted or It is not been find");
             }
 
-           
             house.Title = model.Title;
             house.Address = model.Address;
             house.ImageUrl = model.ImageUrl;
