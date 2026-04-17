@@ -22,7 +22,7 @@ namespace HouseRentingSystemApi
             builder.Services.AddCors(options => options.AddPolicy("FrontendPolicy", policy =>
             {
                 policy
-                    .WithOrigins("http://127.0.0.1:5500")
+                    .WithOrigins("http://127.0.0.1:5500", "http://127.0.0.1:5501")
                     .AllowAnyMethod()
                     .AllowAnyHeader();
             }));
@@ -104,6 +104,7 @@ namespace HouseRentingSystemApi
             });
 
             builder.Services.AddAuthentication();
+           builder.Services.AddAuthorization();
             var app = builder.Build();
 
             // Configure the HTTP request pipeline.
@@ -116,7 +117,7 @@ namespace HouseRentingSystemApi
             app.UseCors("FrontendPolicy");
 
             app.UseHttpsRedirection();
-
+            app.UseAuthentication();
             app.UseAuthorization();
 
 

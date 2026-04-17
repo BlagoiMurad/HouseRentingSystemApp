@@ -1,6 +1,7 @@
 ﻿using HouseRentingSystemApi.Data;
 using HouseRentingSystemApi.Data.Entities;
 using HouseRentingSystemApi.Models;
+using HouseRentingSystemApi.Models.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -26,21 +27,28 @@ namespace HouseRentingSystemApi.Controllers
                 .AsNoTracking()
                 .Select(h => new HouseDetailModel()
                 {
-
+                    Id = h.Id,
                     Title = h.Title,
                     Address = h.Address,
-                    ImageUrl = h.ImageUrl
+                    ImageUrl = h.ImageUrl,
+                    Description = h.Description,
+                    PricePerMonth = h.PricePerMonth,
+                    Category = (CategoryViewEnum)h.CategoryId
                 })
                 .ToListAsync();
 
             return Ok(model);
         }
 
+
         [HttpGet("{id}")]
         [Produces(typeof(HouseDetailModel))]
         public async Task<IActionResult> GetById(int id)
         {
-            var house = await context.Houses.FirstOrDefaultAsync(h => h.Id == id);
+            var house = await context.Houses
+                .AsNoTracking()
+                .FirstOrDefaultAsync(h => h.Id == id);
+
             if (house == null)
             {
                 return NotFound();
@@ -48,11 +56,17 @@ namespace HouseRentingSystemApi.Controllers
 
             return Ok(new HouseDetailModel()
             {
+                Id = house.Id,
                 Title = house.Title,
                 Address = house.Address,
-                ImageUrl = house.ImageUrl
+                ImageUrl = house.ImageUrl,
+                Description = house.Description,
+                PricePerMonth = house.PricePerMonth,
+                Category = (CategoryViewEnum)house.CategoryId
             });
         }
+
+        //implementirame end point edit. da polu`awame danni json za kushat s post zaqwka kym edit aktiona i da editwame ku]a kym bazata
         [Authorize]
         [HttpPost]
         [Produces(typeof(HouseDetailModel))]
@@ -103,6 +117,80 @@ namespace HouseRentingSystemApi.Controllers
                     PricePerMonth = newHouse.PricePerMonth,
                     Category = model.Category
             });
+
         }
+        [Authorize]
+        [HttpPost("Edit/{id}")]
+        [Produces(typeof(HouseDetailModel))]
+        public async Task<IActionResult> Edit(int id, [FromBody] HouseDetailModel model)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            var house = await context.Houses
+                .FirstOrDefaultAsync(h => h.Id == id);
+
+            if (house == null)
+            {
+                return NotFound();
+            }
+
+           
+            house.Title = model.Title;
+            house.Address = model.Address;
+            house.ImageUrl = model.ImageUrl;
+            house.Description = model.Description;
+            house.PricePerMonth = model.PricePerMonth;
+
+            var category = await context.Categories
+                .FirstOrDefaultAsync(c => c.Name == model.Category.ToString());
+
+            if (category == null)
+            {
+                category = new Category()
+                {
+                    Name = model.Category.ToString()
+                };
+
+                context.Categories.Add(category);
+                await context.SaveChangesAsync();
+            }
+
+            house.CategoryId = category.Id;
+
+            await context.SaveChangesAsync();
+
+            return Ok(new HouseDetailModel()
+            {
+                Id= house.Id,
+                Title = house.Title,
+                Address = house.Address,
+                ImageUrl = house.ImageUrl,
+                Description = house.Description,
+                PricePerMonth = house.PricePerMonth,
+                Category = model.Category
+            });
+        }
+
+        [Authorize]
+        [HttpPost("Delete/{id}")]
+        public async Task<IActionResult> Delete([FromRoute] int id)
+        {
+            var house = await context.Houses
+                .FirstOrDefaultAsync(h => h.Id == id);
+
+            if (house == null)
+            {
+                return NotFound("The house is already deleted or It is not been find");
+            }
+
+            context.Houses.Remove(house);
+            await context.SaveChangesAsync();
+
+            return Ok(new { message = $"House with id {id} was deleted successfully." });
+        }
+        
     }
 }

@@ -51,8 +51,9 @@ namespace HouseRentingSystemApi.Controllers
             }
             var token = GenerateJwtToken(user);
             Console.WriteLine(token);
-            return Ok("\"" + token + "\"");
-            //return Ok(populateresult(200,token,"User logged in"));
+            //return Ok(token);
+            //return Ok("\"" + token + "\"");
+            return Ok(populateresult(200,token,"User logged in"));
         }
 
       

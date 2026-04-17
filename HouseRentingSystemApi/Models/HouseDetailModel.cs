@@ -8,8 +8,10 @@ namespace HouseRentingSystemApi.Models
 {
     public class HouseDetailModel
     {
+        public int Id { get; set; }
         [BindNever]
     
+        
         [MaxLength(TitleMaxLength)]
         public string Title { get; set; }
 
