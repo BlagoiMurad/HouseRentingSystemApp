@@ -1,6 +1,7 @@
 
 using HouseRentingSystemApi.Data;
 using HouseRentingSystemApi.Data.Entities;
+using HouseRentingSystemApi.Middelewere;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -106,14 +107,28 @@ namespace HouseRentingSystemApi
             builder.Services.AddAuthentication();
            builder.Services.AddAuthorization();
             var app = builder.Build();
-
+            app.StopWatch();
             // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
             {
                 app.UseSwagger();
                 app.UseSwaggerUI();
             }
+           
+            app.Use(async (context, next) => 
+            {
+                
+               
+                var path = context.Request.Path.ToString();
+                Console.WriteLine($"Hello request :{path}");
 
+                await next();
+                Console.WriteLine("Goodbye");
+
+                }
+            );
+            app.UseCustom();
+            
             app.UseCors("FrontendPolicy");
 
             app.UseHttpsRedirection();
