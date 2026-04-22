@@ -26,7 +26,7 @@ namespace HouseRentingSystemApi.Middelewere
             await _next(context);
             sv.Stop();
 
-            Console.WriteLine($"The resutl is {((int)sv.Elapsed.TotalMilliseconds):f2}");
+            Console.WriteLine($"The resutl is {((int)sv.Elapsed.TotalMilliseconds),2} ms.");
 
 
 
