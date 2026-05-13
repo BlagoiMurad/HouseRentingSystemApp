@@ -5,8 +5,6 @@ namespace HouseRentingSystemApi.Models.Authorization
     public class Register
     {
         [Required]
-        
-        [StringLength(20, MinimumLength = 3)]
         public string Username { get; set; }
 
         [Required]
@@ -14,7 +12,13 @@ namespace HouseRentingSystemApi.Models.Authorization
         public string Email { get; set; }
 
         [Required]
-        [StringLength(50, MinimumLength = 6)]
+        [MinLength(3)]
         public string Password { get; set; }
+
+        /// <summary>
+        /// Роля при регистрация: "Agent" или "Client"
+        /// По подразбиране е "Client"
+        /// </summary>
+        public string Role { get; set; } = "Client";
     }
 }

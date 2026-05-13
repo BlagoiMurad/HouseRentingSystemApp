@@ -1,4 +1,3 @@
-
 using HouseRentingSystemApi.Data;
 using HouseRentingSystemApi.Data.Entities;
 using HouseRentingSystemApi.Middelewere;
@@ -13,13 +12,12 @@ namespace HouseRentingSystemApi
 {
     public class Program
     {
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            
-
             builder.Services.AddControllers();
+
             builder.Services.AddCors(options => options.AddPolicy("FrontendPolicy", policy =>
             {
                 policy
@@ -27,7 +25,7 @@ namespace HouseRentingSystemApi
                     .AllowAnyMethod()
                     .AllowAnyHeader();
             }));
-            // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen(options =>
             {
@@ -50,22 +48,22 @@ namespace HouseRentingSystemApi
                 options.AddSecurityRequirement(new OpenApiSecurityRequirement
                 {
                     {
-                    new OpenApiSecurityScheme
-                    {
-                        Reference = new OpenApiReference
+                        new OpenApiSecurityScheme
                         {
-                            Type = ReferenceType.SecurityScheme,
-                            Id = "Bearer"
-                        }
-                    },
-                    Array.Empty<string>()
+                            Reference = new OpenApiReference
+                            {
+                                Type = ReferenceType.SecurityScheme,
+                                Id = "Bearer"
+                            }
+                        },
+                        Array.Empty<string>()
                     }
                 });
             });
 
-
             var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-            builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlServer(connectionString));
+            builder.Services.AddDbContext<AppDbContext>(options =>
+                options.UseSqlServer(connectionString));
 
             builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
             {
@@ -76,69 +74,78 @@ namespace HouseRentingSystemApi
                 options.Password.RequireNonAlphanumeric = false;
                 options.Password.RequiredLength = 3;
             })
-                .AddEntityFrameworkStores<AppDbContext>()
-                .AddDefaultTokenProviders();
+            .AddEntityFrameworkStores<AppDbContext>()
+            .AddDefaultTokenProviders();
 
-            var jwtSection = builder. Configuration.GetSection("Jwt");
+            var jwtSection = builder.Configuration.GetSection("Jwt");
             var key = jwtSection["Key"];
-
 
             builder.Services.AddAuthentication(options =>
             {
                 options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-
+                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
             })
             .AddJwtBearer(options =>
             {
-                 options.TokenValidationParameters = new TokenValidationParameters
-                 {
-                     ValidateIssuer = true,
-                     ValidateAudience = true,
-                     ValidateLifetime = true,
-                     ValidateIssuerSigningKey = true,
-
-                     ValidIssuer = jwtSection["Issuer"],
-                     ValidAudience = jwtSection["Audience"],
-                     IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key!))
-                 };
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+                    ValidIssuer = jwtSection["Issuer"],
+                    ValidAudience = jwtSection["Audience"],
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key!))
+                };
             });
 
-            builder.Services.AddAuthentication();
-           builder.Services.AddAuthorization();
+            builder.Services.AddAuthorization();
+
             var app = builder.Build();
+
+            // ── Seed роли при стартиране ─────────────────────────────────────
+            using (var scope = app.Services.CreateScope())
+            {
+                var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+
+                string[] roles = { "Agent", "Client" };
+
+                foreach (var role in roles)
+                {
+                    if (!await roleManager.RoleExistsAsync(role))
+                    {
+                        await roleManager.CreateAsync(new IdentityRole(role));
+                        Console.WriteLine($"Ролята '{role}' беше създадена.");
+                    }
+                }
+            }
+            // ─────────────────────────────────────────────────────────────────
+
             app.StopWatch();
-            // Configure the HTTP request pipeline.
+
             if (app.Environment.IsDevelopment())
             {
                 app.UseSwagger();
                 app.UseSwaggerUI();
             }
-           
-            app.Use(async (context, next) => 
-            {
-                
-               
-                var path = context.Request.Path.ToString();
-                Console.WriteLine($"Hello request :{path}");
 
+            app.Use(async (context, next) =>
+            {
+                var path = context.Request.Path.ToString();
+                Console.WriteLine($"Hello request: {path}");
                 await next();
                 Console.WriteLine("Goodbye");
+            });
 
-                }
-            );
             app.UseCustom();
-            
             app.UseCors("FrontendPolicy");
-
             app.UseHttpsRedirection();
             app.UseAuthentication();
             app.UseAuthorization();
 
-
             app.MapControllers();
 
-            app.Run();  
+            app.Run();
         }
     }
 }

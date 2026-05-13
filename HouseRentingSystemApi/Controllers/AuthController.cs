@@ -15,83 +15,91 @@ namespace HouseRentingSystemApi.Controllers
     public class AuthController : ControllerBase
     {
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly RoleManager<IdentityRole> _roleManager;
         private readonly IConfiguration configuration;
 
-        public AuthController(UserManager<ApplicationUser> userManager, IConfiguration configuration)
+        // Позволени роли при регистрация
+        private static readonly HashSet<string> AllowedRoles = new() { "Agent", "Client" };
+
+        public AuthController(
+            UserManager<ApplicationUser> userManager,
+            RoleManager<IdentityRole> roleManager,
+            IConfiguration configuration)
         {
             _userManager = userManager;
+            _roleManager = roleManager;
             this.configuration = configuration;
         }
 
         [HttpPost("/login")]
-        public async Task<IActionResult> Login([FromBody]LoginModel model)
+        public async Task<IActionResult> Login([FromBody] LoginModel model)
         {
             if (!ModelState.IsValid)
             {
-                var authResult = new AuthResult();
-                authResult.Code = 400;
-                
-            var allErrors = ModelState.Values
-                    .SelectMany(v => v.Errors)
-                    .Select(e => e.ErrorMessage)
-                    .ToList();
-                authResult.Massage = string.Join(Environment.NewLine, allErrors);
-                return Unauthorized();
+                return Unauthorized(PopulateResult(400, null, "Невалидни данни."));
             }
-            var user = await _userManager.FindByEmailAsync(model.Email);
 
+            var user = await _userManager.FindByEmailAsync(model.Email);
             if (user == null)
             {
-                return Unauthorized(populateresult(400,null,"The username or email do not exists."));
+                return Unauthorized(PopulateResult(400, null, "Потребителят не съществува."));
             }
-            var result = await _userManager.CheckPasswordAsync(user, model.Password);
-            if (!result)
+
+            var passwordOk = await _userManager.CheckPasswordAsync(user, model.Password);
+            if (!passwordOk)
             {
-                return Unauthorized(populateresult(400, null, "The username or email already exists."));
+                return Unauthorized(PopulateResult(400, null, "Грешна парола."));
             }
-            var token = GenerateJwtToken(user);
+
+            // Вземаме ролите на потребителя за JWT
+            var roles = await _userManager.GetRolesAsync(user);
+            var token = await GenerateJwtToken(user, roles);
+
             Console.WriteLine(token);
-            //return Ok(token);
-            //return Ok("\"" + token + "\"");
-            return Ok(populateresult(200,token,"User logged in"));
+            return Ok(PopulateResult(200, token, "Успешен вход."));
         }
 
-      
-
         [HttpPost("/register")]
-        [Produces(typeof(AuthResult))]
-        public async Task <IActionResult> Register([FromBody]Register model)
+        public async Task<IActionResult> Register([FromBody] Register model)
         {
-           if(!ModelState.IsValid)
+            if (!ModelState.IsValid)
             {
-                return Unauthorized();
+                return BadRequest(PopulateResult(400, null, "Невалидни данни."));
             }
 
-            var user = await _userManager.FindByEmailAsync(model.Email);
-
-            if (user != null)
+            // Валидираме ролята
+            var role = model.Role ?? "Client";
+            if (!AllowedRoles.Contains(role))
             {
-                return Ok(populateresult(400, null, "User already exist"));
-                
+                return BadRequest(PopulateResult(400, null, $"Невалидна роля '{role}'. Позволени: Agent, Client."));
             }
-            var newUser = new ApplicationUser()
+
+            var existingUser = await _userManager.FindByEmailAsync(model.Email);
+            if (existingUser != null)
+            {
+                return Ok(PopulateResult(400, null, "Потребителят вече съществува."));
+            }
+
+            var newUser = new ApplicationUser
             {
                 Email = model.Email,
                 UserName = model.Username
             };
-           var result = await _userManager.CreateAsync( newUser,model.Password);
-            
-            if(result.Succeeded)
-            {
-              
 
-                return Ok(populateresult(200,null, "User registered succsesfully"));
+            var result = await _userManager.CreateAsync(newUser, model.Password);
+            if (!result.Succeeded)
+            {
+                var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+                return BadRequest(PopulateResult(400, null, errors));
             }
-           
-            return BadRequest();  
+
+            // Добавяме ролята (ролите са създадени при старт на приложението)
+            await _userManager.AddToRoleAsync(newUser, role);
+
+            return Ok(PopulateResult(200, null, $"Потребителят е регистриран успешно с роля '{role}'."));
         }
 
-        private string GenerateJwtToken(ApplicationUser user)
+        private async Task<string> GenerateJwtToken(ApplicationUser user, IList<string> roles)
         {
             var jwtSection = configuration.GetSection("Jwt");
             var key = jwtSection["Key"]!;
@@ -105,11 +113,17 @@ namespace HouseRentingSystemApi.Controllers
                 new Claim(ClaimTypes.Name, user.UserName!)
             };
 
+            // Добавяме ролите като claims - това е ключово за [Authorize(Roles="...")]
+            foreach (var role in roles)
+            {
+                claims.Add(new Claim(ClaimTypes.Role, role));
+            }
+
             var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
             var credentials = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
 
             var expires = DateTime.UtcNow.AddMinutes(
-              int.Parse(jwtSection["ExpiresInMinutes"]!)
+                int.Parse(jwtSection["ExpiresInMinutes"]!)
             );
 
             var token = new JwtSecurityToken(
@@ -123,18 +137,14 @@ namespace HouseRentingSystemApi.Controllers
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
 
-        private AuthResult populateresult( int code, string? token = null,params string[] masseges)
+        private AuthResult PopulateResult(int code, string? token = null, params string[] messages)
         {
-            var result = new AuthResult();
-            result.Code = code;
-            result.Massage = string.Join(Environment.NewLine, masseges);
-            if(token != null)
+            return new AuthResult
             {
-                result.Token = token;
-            }
-            return result;
+                Code = code,
+                Massage = string.Join(Environment.NewLine, messages),
+                Token = token
+            };
         }
-
-
     }
 }
